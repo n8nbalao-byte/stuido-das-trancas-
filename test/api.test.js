@@ -208,3 +208,15 @@ test('loja: produto com estoque, pedido reserva, pagamento vira venda, estoque n
   const [mv] = await q("SELECT COUNT(*) n FROM stock_movements WHERE variant_id = ? AND kind IN ('venda','devolucao')", [v.id]);
   assert.equal(mv.n, 2);
 });
+
+test('limites anti-abuso: 3 pedidos em aberto por telefone; pedido abandonado expira e libera a reserva', { skip }, async () => {
+  const [v] = await q("SELECT v.id FROM product_variants v JOIN products p ON p.id = v.product_id WHERE p.name = 'Jumbo Teste'");
+  const order = () => call('POST', '/api/orders', { items: [{ variantId: v.id, qty: 1 }], name: 'Abusada', phone: '19966660000', consent: true }, null);
+  for (let i = 0; i < 3; i++) assert.equal((await order()).status, 201);
+  assert.equal((await order()).status, 429);
+  await q("UPDATE orders SET created_at = ? WHERE status = 'created'", [new Date(Date.now() - 49 * 3600e3)]);
+  const { expireOrders } = await import('../server/store.js');
+  await tx(expireOrders);
+  const [row] = await q('SELECT reserved_qty FROM product_variants WHERE id = ?', [v.id]);
+  assert.equal(row.reserved_qty, 0);
+});

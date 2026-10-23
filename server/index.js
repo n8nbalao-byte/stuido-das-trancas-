@@ -4,6 +4,7 @@ import { expireHolds } from './booking.js';
 import { tx } from './db.js';
 import { migrate } from './migrate.js';
 import { dispatch } from './notify.js';
+import { expireOrders } from './store.js';
 
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => console.log(`Studio das Tranças ouvindo em http://localhost:${port}`));
@@ -13,6 +14,7 @@ if (process.env.NODE_ENV !== 'test') {
   migrate().catch((e) => console.error('migrate', e.message));
   setInterval(() => {
     tx(expireHolds).catch((e) => console.error('expire', e.message));
+    tx(expireOrders).catch((e) => console.error('expire-orders', e.message));
     dispatch().catch((e) => console.error('dispatch', e.message));
   }, 60_000);
 }

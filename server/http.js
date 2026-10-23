@@ -38,7 +38,8 @@ export function num(value, field, min, max) {
 // ponytail: limite por IP em memória (por processo); trocar por tabela se aparecer abuso com vários processos.
 const hits = new Map();
 export const limit = (max, windowMs) => (req, res, next) => {
-  const key = `${req.path}|${req.ip}`;
+  // Pela rota declarada (não pela URL): trocar o código na URL não zera o limite.
+  const key = `${req.baseUrl}${req.route?.path ?? req.path}|${req.ip}`;
   const now = Date.now();
   const list = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
   if (list.length >= max) fail(429, 'Muitas tentativas. Aguarde alguns minutos e tente de novo.');

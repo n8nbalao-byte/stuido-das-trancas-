@@ -55,7 +55,7 @@ export async function loadStaff(req, res, next) {
   const token = sid(req);
   if (token) {
     const [staff] = await q('SELECT st.* FROM sessions s JOIN staff st ON st.id = s.staff_id WHERE s.token_hash = ? AND s.expires_at > ? AND st.active = 1', [hash(token), new Date()]);
-    if (staff) req.staff = staff;
+    if (staff) { req.staff = staff; req.sessionHash = hash(token); }
   }
   next();
 }

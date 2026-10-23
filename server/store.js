@@ -47,6 +47,8 @@ export async function createOrder(run, { items, name, phone, delivery, notes }) 
     if (v.stock_qty - v.reserved_qty < qty) fail(409, `Estoque insuficiente: ${v.product_name}${v.name !== 'Padrão' ? ` (${v.name})` : ''}. Disponível: ${Math.max(0, v.stock_qty - v.reserved_qty)}.`);
     total += v.price_cents * qty;
   }
+  const [open] = await run("SELECT COUNT(*) n FROM orders o JOIN customers c ON c.id = o.customer_id WHERE c.phone = ? AND o.status IN ('created','awaiting_confirmation','awaiting_payment')", [phone]);
+  if (open.n >= 3) fail(429, 'Você já tem pedidos em aberto. Fale com o salão pelo WhatsApp para finalizar.');
   await run('INSERT INTO customers (name, phone, consent_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE name = VALUES(name), consent_at = VALUES(consent_at)', [name, phone, new Date()]);
   const [customer] = await run('SELECT id FROM customers WHERE phone = ?', [phone]);
   let code;
@@ -105,4 +107,10 @@ export async function adjustStock(run, variantId, delta, reason, staffId) {
   if (v.stock_qty + delta < v.reserved_qty) fail(409, `Saída maior que o disponível: há ${v.stock_qty} no estoque e ${v.reserved_qty} reservado(s) em pedidos.`);
   await run('UPDATE product_variants SET stock_qty = stock_qty + ? WHERE id = ?', [delta, variantId]);
   await run('INSERT INTO stock_movements (variant_id, delta, kind, reason, staff_id) VALUES (?,?,?,?,?)', [variantId, delta, delta > 0 ? 'entrada' : 'saida', reason || null, staffId]);
+}
+
+/** Pedido que ninguém confirmou em 48 h é cancelado e libera a reserva (evita estoque preso por pedido abandonado). */
+export async function expireOrders(run) {
+  const rows = await run("SELECT id FROM orders WHERE status = 'created' AND created_at < ?", [new Date(Date.now() - 48 * 3600e3)]);
+  for (const o of rows) await setOrderStatus(run, o.id, 'cancelled', 'Não confirmado em 48 horas: reserva liberada.', null);
 }

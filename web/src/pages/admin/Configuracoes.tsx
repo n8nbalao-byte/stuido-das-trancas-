@@ -86,6 +86,29 @@ export default function Configuracoes() {
         <p>{s.whatsappConfigured ? 'Configurado.' : 'Não configurado.'} Conexão do número (QR Code ou código) em <a href="/admin/notificacoes">WhatsApp</a>.</p>
       </section>
       <button className="btn" style={{ justifySelf: 'start' }}>Salvar configurações</button>
+      <ChangePassword />
     </form>
+  );
+}
+
+function ChangePassword() {
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'danger'; text: string }>();
+  const [cur, setCur] = useState('');
+  const [next, setNext] = useState('');
+  async function go() {
+    setMsg(undefined);
+    try { await api('/auth/password', { body: { current: cur, next } }); setCur(''); setNext(''); setMsg({ kind: 'ok', text: 'Senha trocada.' }); } catch (e: any) { setMsg({ kind: 'danger', text: e.message }); }
+  }
+  // Fora do <form> de configurações: Enter aqui não salva o resto da página.
+  return (
+    <section className="panel stack" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } }}>
+      <h2>Minha senha</h2>
+      <div className="grid-form">
+        <label className="field"><span>Senha atual</span><input className="input" type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} /></label>
+        <label className="field"><span>Nova senha (10+ caracteres)</span><input className="input" type="password" autoComplete="new-password" minLength={10} value={next} onChange={(e) => setNext(e.target.value)} /></label>
+        <button type="button" className="btn sm" style={{ alignSelf: 'end' }} disabled={!cur || next.length < 10} onClick={go}>Trocar senha</button>
+      </div>
+      {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
+    </section>
   );
 }

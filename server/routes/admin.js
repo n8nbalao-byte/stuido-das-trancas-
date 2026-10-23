@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { login, logout, publicStaff, requireAdmin } from '../auth.js';
+import { checkPassword, hashPassword, login, logout, publicStaff, requireAdmin } from '../auth.js';
 import { adminAction, candidates, loadAppointment } from '../booking.js';
 import { q, tx } from '../db.js';
 import { fail, int, text } from '../http.js';
@@ -14,6 +14,17 @@ const r = Router();
 r.post('/auth/login', async (req, res) => res.json(await login(res, req.body?.email, req.body?.password)));
 r.post('/auth/logout', async (req, res) => { await logout(req, res); res.json({ ok: true }); });
 r.get('/auth/me', (req, res) => res.json(req.staff ? publicStaff(req.staff) : null));
+
+r.post('/auth/password', async (req, res) => {
+  if (!req.staff) fail(401, 'Faça login para continuar.');
+  const next = String(req.body?.next ?? '');
+  if (next.length < 10 || next.length > 200) fail(400, 'A nova senha precisa ter pelo menos 10 caracteres.');
+  if (!(await checkPassword(String(req.body?.current ?? ''), req.staff.password_hash))) fail(400, 'Senha atual incorreta.');
+  await q('UPDATE staff SET password_hash = ? WHERE id = ?', [await hashPassword(next), req.staff.id]);
+  // Outras sessões abertas caem; esta continua (o cookie atual é recriado no próximo login).
+  await q('DELETE FROM sessions WHERE staff_id = ? AND token_hash <> ?', [req.staff.id, req.sessionHash ?? '']);
+  res.json({ ok: true });
+});
 
 r.use('/admin', requireAdmin);
 

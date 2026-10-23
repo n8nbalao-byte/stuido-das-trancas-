@@ -89,6 +89,13 @@ export async function createBooking(run, { serviceId, variantId, start, name, ph
   const ctx = await loadContext(run, item.service.id, day, day);
   if (!daySlots(ctx, day, item.block).some((s) => s.start === S.toISOString())) fail(409, 'Esse horário acabou de ser ocupado. Escolha outro, por favor.');
 
+  // Um telefone não segura a agenda com várias reservas: no máximo 2 solicitações em andamento.
+  const [open] = await run(
+    `SELECT COUNT(*) n FROM appointments a JOIN customers c ON c.id = a.customer_id
+     WHERE c.phone = ? AND (a.status IN ('proof_submitted','awaiting_approval','alternative_proposed') OR (a.status = 'awaiting_payment' AND a.hold_expires_at > ?))`,
+    [phone, new Date()]);
+  if (open.n >= 2) fail(429, 'Você já tem solicitações em andamento. Acompanhe em "Minha solicitação" ou fale com o salão pelo WhatsApp.');
+
   const s = await getSettings(run);
   const { deposit, balance } = splitDeposit(item.price);
   await run('INSERT INTO customers (name, phone, consent_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE name = VALUES(name), consent_at = VALUES(consent_at)', [name, phone, new Date()]);
