@@ -56,7 +56,13 @@ Vitrine em `/loja`, carrinho no aparelho (`/carrinho`) e pedido finalizado pelo 
 
 ## WhatsApp (Evolution API)
 
-Instância `studio` em `https://evolution-api-yksm.srv1139708.hstgr.cloud`. A chave vai **só** na variável `EVOLUTION_API_KEY` do servidor (nunca no repositório nem no `.env` local, para o ambiente de teste não mandar mensagem de verdade). Em 23/10/2026 a instância respondia `state: close`: falta ler o QR Code no painel da Evolution com o celular do salão.
+Instância `studio` em `https://evolution-api-yksm.srv1139708.hstgr.cloud`, configurada nas variáveis `EVOLUTION_*` do servidor (sem elas, a Mariana pode informar endereço, instância e chave no painel). A chave nunca vai para o navegador nem para o repositório.
+
+A conexão do número é feita pela própria Mariana em **Painel → WhatsApp**: "Conectar com QR Code" (ler com o celular do salão em Dispositivos conectados) ou "Conectar com código" (digitar o código de pareamento no celular). Depois dá para enviar uma mensagem de teste ou desconectar. Enquanto não conecta, as mensagens ficam na fila; avisos com mais de 6 h são descartados para não chegarem fora de hora.
+
+## Produção
+
+`https://studiodastrancas.n8nbalao.com` — Node app na Hostinger (u770915504), deploy automático a cada push na `main`. Variáveis no hPanel: `DATABASE_URL` (banco `u770915504_studio`, senha com `@` codificado como `%40`), `NODE_ENV`, `PUBLIC_URL`, `UPLOAD_DIR=/home/u770915504/studio-uploads`, `EVOLUTION_*`. Comandos por SSH na pasta `~/domains/studiodastrancas.n8nbalao.com/hbuilds/current/nodejs` com `/opt/alt/alt-nodejs22/root/bin/node --env-file=$HOME/domains/studiodastrancas.n8nbalao.com/hbuilds/config/.env`.
 
 ## Pendências do salão
 
@@ -65,5 +71,5 @@ Instância `studio` em `https://evolution-api-yksm.srv1139708.hstgr.cloud`. A ch
 - Durações dos 26 serviços "pendentes"; nomes das opções do Goddess Braids.
 - WhatsApp de Leide e Jhennifer (lembretes) e as variáveis da Evolution no servidor.
 - Cadastro dos produtos (nome, preço, estoque, foto) em Produtos e estoque.
-- Ler o QR Code da instância `studio` na Evolution.
+- Conectar o WhatsApp do salão (Painel → WhatsApp) e trocar a senha temporária (Configurações → Minha senha).
 - Próximas fases: impressão 80 mm, Pix automático com provedor (webhook).
