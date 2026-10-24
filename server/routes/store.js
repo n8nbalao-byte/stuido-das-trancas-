@@ -59,30 +59,55 @@ const productFields = (b) => ({
   active: b.active ? 1 : 0,
 });
 
+const variantFields = (b) => ({
+  name: text(b.name, 'nome da variação', { max: 80 }),
+  price_cents: int(b.price_cents, 'preço', 0, 10_000_000),
+  active: b.active ? 1 : 0,
+});
+
 r.post('/admin/products', async (req, res) => {
-  const f = productFields(req.body ?? {});
+  const b = req.body ?? {};
+  const f = productFields(b);
+  // Formato antigo (um preço e um estoque) vira uma variação "Padrão".
+  const variants = Array.isArray(b.variants) ? b.variants : [{ name: 'Padrão', price_cents: b.price_cents ?? 0, stock_qty: b.stock_qty ?? 0, active: true }];
+  if (!variants.length || variants.length > 30) fail(400, 'Informe ao menos uma variação.');
   const id = await tx(async (t) => {
     const x = await t('INSERT INTO products SET ?, slug = ?', [f, `${slugify(f.name)}-${Date.now().toString(36)}`]);
-    // Variação inicial: o produto já nasce vendável quando a Mariana informa preço e estoque.
-    const price = int(req.body.price_cents ?? 0, 'preço', 0, 10_000_000);
-    const stock = int(req.body.stock_qty ?? 0, 'estoque', 0, 100000);
-    const v = await t("INSERT INTO product_variants (product_id, name, price_cents) VALUES (?, 'Padrão', ?)", [x.insertId, price]);
-    if (stock) await adjustStock(t, v.insertId, stock, 'Estoque inicial', req.staff.id);
+    for (const [i, v] of variants.entries()) {
+      const vf = variantFields({ active: true, ...v });
+      const stock = int(v.stock_qty ?? 0, 'estoque inicial', 0, 100000);
+      const row = await t('INSERT INTO product_variants SET ?, product_id = ?, sort = ?', [vf, x.insertId, i + 1]);
+      if (stock) await adjustStock(t, row.insertId, stock, 'Estoque inicial', req.staff.id);
+    }
     return x.insertId;
   });
   res.status(201).json({ id });
 });
 
+/** Salva o produto e, se vierem, todas as variações (edita as existentes e cria as novas) numa transação só. */
 r.put('/admin/products/:id', async (req, res) => {
-  const r2 = await q('UPDATE products SET ? WHERE id = ?', [productFields(req.body ?? {}), Number(req.params.id)]);
-  if (!r2.affectedRows) fail(404, 'Produto não encontrado.');
+  const b = req.body ?? {};
+  const id = Number(req.params.id);
+  const f = productFields(b);
+  await tx(async (t) => {
+    const r2 = await t('UPDATE products SET ? WHERE id = ?', [f, id]);
+    if (!r2.affectedRows) fail(404, 'Produto não encontrado.');
+    if (!Array.isArray(b.variants)) return;
+    if (!b.variants.length || b.variants.length > 30) fail(400, 'Informe ao menos uma variação.');
+    const own = new Set((await t('SELECT id FROM product_variants WHERE product_id = ?', [id])).map((v) => v.id));
+    for (const [i, v] of b.variants.entries()) {
+      const vf = variantFields(v);
+      if (v.id) {
+        if (!own.has(Number(v.id))) fail(400, 'Variação não pertence a este produto.');
+        await t('UPDATE product_variants SET ?, sort = ? WHERE id = ?', [vf, i + 1, Number(v.id)]);
+      } else {
+        const row = await t('INSERT INTO product_variants SET ?, product_id = ?, sort = ?', [vf, id, i + 1]);
+        const stock = int(v.stock_qty ?? 0, 'estoque inicial', 0, 100000);
+        if (stock) await adjustStock(t, row.insertId, stock, 'Estoque inicial', req.staff.id);
+      }
+    }
+  });
   res.json({ ok: true });
-});
-
-const variantFields = (b) => ({
-  name: text(b.name, 'nome da variação', { max: 80 }),
-  price_cents: int(b.price_cents, 'preço', 0, 10_000_000),
-  active: b.active ? 1 : 0,
 });
 
 r.post('/admin/products/:id/variants', async (req, res) => {
