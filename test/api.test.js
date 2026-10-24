@@ -220,3 +220,22 @@ test('limites anti-abuso: 3 pedidos em aberto por telefone; pedido abandonado ex
   const [row] = await q('SELECT reserved_qty FROM product_variants WHERE id = ?', [v.id]);
   assert.equal(row.reserved_qty, 0);
 });
+
+test('equipe: nova profissional nasce com a jornada do salão e sem competências', { skip }, async () => {
+  assert.equal((await call('POST', '/api/admin/staff', { name: 'Nova', phone: '123' })).status, 400, 'WhatsApp inválido');
+  const r = await call('POST', '/api/admin/staff', { name: 'Ana Trancista', phone: '(19) 98888-7777', color: '#2F7A4F' });
+  assert.equal(r.status, 201);
+  const ana = (await call('GET', '/api/admin/staff')).body.find((x) => x.id === r.body.id);
+  assert.equal(ana.role, 'trancista');
+  assert.equal(ana.phone, '19988887777');
+  assert.equal(ana.hours.length, 5);
+  assert.deepEqual(ana.skills, []);
+});
+
+test('vitrine: 10 produtos com foto, preço e estoque', { skip }, async () => {
+  const list = (await call('GET', '/api/products', null, null)).body.filter((p) => p.photoUrl?.startsWith('/img/produtos/'));
+  assert.equal(list.length, 10);
+  for (const p of list) assert.ok(p.variants.length && p.variants.every((v) => v.priceCents > 0 && v.available > 0), p.name);
+  const [mv] = await q("SELECT COUNT(*) n FROM stock_movements WHERE reason = 'Estoque inicial' AND order_id IS NULL AND staff_id IS NULL");
+  assert.equal(mv.n, 19);
+});
