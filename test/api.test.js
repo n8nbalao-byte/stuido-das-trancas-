@@ -239,3 +239,19 @@ test('vitrine: 10 produtos com foto, preço e estoque', { skip }, async () => {
   const [mv] = await q("SELECT COUNT(*) n FROM stock_movements WHERE reason = 'Estoque inicial' AND order_id IS NULL AND staff_id IS NULL");
   assert.equal(mv.n, 19);
 });
+
+test('produto: criar com várias variações e salvar tudo de uma vez', { skip }, async () => {
+  const c = await call('POST', '/api/admin/products', { name: 'Trança Teste', category: 'Jumbos', active: true, variants: [
+    { name: 'Preto', price_cents: 3000, stock_qty: 5 }, { name: 'Mel', price_cents: 3200, stock_qty: 0 }] });
+  assert.equal(c.status, 201);
+  const get = async () => (await call('GET', '/api/admin/products')).body.find((p) => p.id === c.body.id);
+  const p = await get();
+  assert.deepEqual(p.variants.map((v) => [v.name, v.price_cents, v.stock_qty]), [['Preto', 3000, 5], ['Mel', 3200, 0]]);
+  const body = { ...p, active: true, variants: [{ ...p.variants[0], name: 'Preto 1B', price_cents: 3100, active: true }, { ...p.variants[1], active: false }, { name: 'Ruivo', price_cents: 3300, stock_qty: 2, active: true }] };
+  assert.equal((await call('PUT', `/api/admin/products/${p.id}`, body)).status, 200);
+  const after = await get();
+  assert.deepEqual(after.variants.map((v) => [v.name, v.price_cents, v.stock_qty, v.active]), [['Preto 1B', 3100, 5, 1], ['Mel', 3200, 0, 0], ['Ruivo', 3300, 2, 1]]);
+  const [other] = await q("SELECT id FROM product_variants WHERE product_id <> ? LIMIT 1", [p.id]);
+  assert.equal((await call('PUT', `/api/admin/products/${p.id}`, { ...body, variants: [{ id: other.id, name: 'x', price_cents: 1, active: true }] })).status, 400);
+  assert.equal((await get()).variants[0].name, 'Preto 1B', 'nada muda quando a transação falha');
+});
