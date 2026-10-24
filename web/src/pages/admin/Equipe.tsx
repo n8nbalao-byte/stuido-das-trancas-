@@ -108,6 +108,37 @@ function Member({ m, services, reload }: { m: Staff; services: Svc[]; reload: ()
   );
 }
 
+/** Nova profissional: nasce com a jornada igual ao expediente do salão e sem competências. */
+function NewMember({ onDone }: { onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function save(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const f = new FormData(form);
+    setBusy(true); setError('');
+    try {
+      await api('/admin/staff', { body: { name: f.get('name'), phone: f.get('phone'), color: f.get('color') } });
+      form.reset(); setOpen(false); onDone();
+    } catch (err: any) { setError(err.message); } finally { setBusy(false); }
+  }
+  if (!open) return <button className="btn" onClick={() => setOpen(true)}>Adicionar profissional</button>;
+  return (
+    <form className="panel grid-form" style={{ width: '100%' }} onSubmit={save}>
+      <label className="field"><span>Nome</span><input className="input" name="name" required maxLength={80} autoFocus /></label>
+      <label className="field"><span>WhatsApp (lembretes)</span><input className="input" name="phone" type="tel" inputMode="tel" placeholder="(19) 9…" /></label>
+      <label className="field"><span>Cor na agenda</span><input className="input" name="color" type="color" defaultValue="#2F7A4F" /></label>
+      <div className="row" style={{ alignSelf: 'end' }}>
+        <button className="btn sm" disabled={busy}>{busy ? 'Salvando…' : 'Adicionar'}</button>
+        <button type="button" className="btn ghost sm" onClick={() => setOpen(false)}>Cancelar</button>
+      </div>
+      {error && <div style={{ gridColumn: '1 / -1' }}><Alert kind="danger">{error}</Alert></div>}
+      <p className="small muted" style={{ gridColumn: '1 / -1' }}>Ela começa com a jornada igual ao expediente do salão. Depois, marque as competências para os horários aparecerem.</p>
+    </form>
+  );
+}
+
 export default function Equipe() {
   const [team, error, reload] = useLoad<Staff[]>('/admin/staff');
   const [services] = useLoad<Svc[]>('/admin/services');
@@ -116,7 +147,7 @@ export default function Equipe() {
   const active = services.filter((s) => s.active);
   return (
     <div className="stack" style={{ gap: 18 }}>
-      <h1>Equipe</h1>
+      <div className="row between"><h1 style={{ margin: 0 }}>Equipe</h1><NewMember onDone={reload} /></div>
       <p className="muted">A agenda só oferece horários de serviços com pelo menos uma profissional habilitada e livre. A cliente nunca escolhe a trancista.</p>
       {team.map((m) => <Member key={`${m.id}-${m.skills.length}`} m={m} services={active} reload={reload} />)}
     </div>

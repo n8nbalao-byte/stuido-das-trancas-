@@ -49,10 +49,12 @@ Fotos ilustrativas do [Unsplash](https://unsplash.com/license) (uso comercial li
 | cat-french · cat-faux-locs · cat-twist · cat-entrelace | 1709672262859-68cb9b39ae4f · 1755705098201-41a342182818 · 1636302925868-52075f44d810 · 1762810629910-5ad48ad9b181 |
 | cat-boho · cat-rabo-de-cavalo · cat-tiarinha · cat-kids · cat-outros | 1770182022686-879a575d4f09 · 1770182023775-4706ce1bed72 · 1770182023641-def05e36a69e · 1785547217618-b3c40af30f4b · 1613099084406-4b9140fc780a |
 | salao (página Sobre) | 1763048208932-cbe149724374 |
+| produtos/jumbo · jumbo-ombre · cabelo-cacheado · fibra-locs · aneis | 1677319378211-06f6a50b49bd · 1560264641-1b5191cc63e2 · 1540920798597-102964c2d7ba · 1648010035157-ce441ddbaa0c · 1757866332595-3c464fb4e43d |
+| produtos/micangas · gel · oleo · touca · pentes | 1776164951072-060a20ce0c75 · 1744309694479-d322305c541a · 1790145001749-788a05d5e151 · 1743931230723-2c1a77230642 · 1680670500665-22e480bcb0fa |
 
 ## Loja
 
-Vitrine em `/loja`, carrinho no aparelho (`/carrinho`) e pedido finalizado pelo WhatsApp do salão (o pedido também cai na fila de avisos da Mariana). O pedido **reserva** o estoque; ao marcar **Pago** no painel vira venda e baixa o estoque; cancelar antes do pagamento libera a reserva, depois devolve ao estoque. Saídas manuais nunca deixam o estoque abaixo do reservado. Fotos dos produtos por upload no painel (pasta `UPLOAD_DIR`, fora do deploy).
+Vitrine em `/loja` (começa com 10 produtos da migration `004_vitrine.sql`, editáveis em Produtos e estoque), carrinho no aparelho (`/carrinho`) e pedido finalizado pelo WhatsApp do salão (o pedido também cai na fila de avisos da Mariana). O pedido **reserva** o estoque; ao marcar **Pago** no painel vira venda e baixa o estoque; cancelar antes do pagamento libera a reserva, depois devolve ao estoque. Saídas manuais nunca deixam o estoque abaixo do reservado. Fotos dos produtos por upload no painel (pasta `UPLOAD_DIR`, fora do deploy).
 
 ## WhatsApp (Evolution API)
 
@@ -70,6 +72,7 @@ A conexão do número é feita pela própria Mariana em **Painel → WhatsApp**:
 - Quem faz cada serviço (Equipe → Competências) — sem isso nenhum horário aparece.
 - Durações dos 26 serviços "pendentes"; nomes das opções do Goddess Braids.
 - WhatsApp de Leide e Jhennifer (lembretes) e as variáveis da Evolution no servidor.
-- Cadastro dos produtos (nome, preço, estoque, foto) em Produtos e estoque.
+- Revisar os 10 produtos da vitrine (preços, estoque, fotos) em Produtos e estoque.
+- Novas profissionais: Equipe → Adicionar profissional (nasce com a jornada do salão; marcar as competências).
 - Conectar o WhatsApp do salão (Painel → WhatsApp) e trocar a senha temporária (Configurações → Minha senha).
 - Próximas fases: impressão 80 mm, Pix automático com provedor (webhook).

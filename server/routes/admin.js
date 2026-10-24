@@ -192,8 +192,16 @@ r.get('/admin/staff', async (req, res) => {
 
 r.post('/admin/staff', async (req, res) => {
   const b = req.body ?? {};
-  const result = await q("INSERT INTO staff (name, phone, color, role) VALUES (?,?,?,'trancista')", [text(b.name, 'nome', { max: 80 }), b.phone ? normalizePhone(b.phone) : null, /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : '#5A1F3B']);
-  res.status(201).json({ id: result.insertId });
+  const name = text(b.name, 'nome', { max: 80 });
+  const phone = b.phone ? normalizePhone(b.phone) : null;
+  if (b.phone && !phone) fail(400, 'WhatsApp inválido.');
+  const id = await tx(async (t) => {
+    const result = await t("INSERT INTO staff (name, phone, color, role) VALUES (?,?,?,'trancista')", [name, phone, /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : '#5A1F3B']);
+    // Jornada inicial = expediente do salão (editável depois); competências ficam vazias até a Mariana marcar.
+    await t('INSERT INTO staff_hours (staff_id, weekday, start_min, end_min) SELECT ?, weekday, open_min, close_min FROM business_hours', [result.insertId]);
+    return result.insertId;
+  });
+  res.status(201).json({ id });
 });
 
 r.put('/admin/staff/:id', async (req, res) => {
