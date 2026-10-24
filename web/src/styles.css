@@ -45,7 +45,7 @@ p { margin: 0; }
 
 .wrap { width: min(1180px, 100% - 32px); margin-inline: auto; }
 .narrow { width: min(640px, 100% - 32px); margin-inline: auto; }
-.stack { display: grid; gap: 16px; }
+.stack { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .between { justify-content: space-between; }
 .muted { color: var(--muted); }
@@ -394,4 +394,33 @@ dialog.modal[open] { display: flex; }
   .var-row > [data-label]::before { content: attr(data-label); display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 2px; }
   .var-row .span-3 { grid-column: auto; }
   .var-actions { justify-self: start; }
+}
+
+/* Categorias */
+dialog.modal.modal-sm { width: min(720px, 100% - 32px); }
+.cat-list { display: grid; }
+.cat-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1e8db; }
+.cat-order { display: flex; }
+.cat-order .btn { padding: 0 10px; }
+.cat-name { display: flex; gap: 8px; }
+@media (max-width: 700px) {
+  dialog.modal.modal-sm { width: 100%; }
+  .cat-row { grid-template-columns: auto 1fr; }
+  .cat-count { grid-column: 2; }
+}
+
+/* Relatório financeiro */
+.report-total { display: grid; gap: 4px; padding: 22px 24px; border-radius: 18px; background: var(--ink); color: #f3e6d3; }
+.report-total b { font-family: var(--serif); font-weight: 400; font-size: clamp(2.2rem, 5vw, 3rem); color: #fff; }
+.stat .small { margin-top: -2px; }
+.bar { height: 10px; border-radius: 999px; background: #f1e8db; overflow: hidden; }
+.bar span { display: block; height: 100%; border-radius: 999px; background: var(--wine); }
+.table tfoot td { border-top: 2px solid #eadfce; border-bottom: 0; }
+@media print {
+  .admin-side, .admin-top, .no-print, .wa-float { display: none !important; }
+  .admin { display: block; background: #fff; }
+  .admin-main { padding: 0; }
+  .panel, .stat { box-shadow: none; border: 1px solid #ddd; }
+  .report-total { background: #fff; color: #000; border: 1px solid #000; }
+  .report-total b { color: #000; }
 }

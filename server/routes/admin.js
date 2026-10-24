@@ -5,6 +5,7 @@ import { q, tx } from '../db.js';
 import { fail, int, text } from '../http.js';
 import { dispatch } from '../notify.js';
 import { normalizePixKey, PIX_TYPES } from '../pix.js';
+import { financialReport } from '../reports.js';
 import { getSettings, normalizePhone, saveSetting } from '../settings.js';
 import { addDays, isDay, spDate, spParts } from '../time.js';
 import { connectionStatus, evolution, saveWhatsappConfig, sendWhatsapp, whatsappConfig, whatsappConfigured } from '../whatsapp.js';
@@ -90,6 +91,14 @@ r.post('/admin/appointments/:id/:action', async (req, res) => {
   const id = Number(req.params.id);
   await tx(async (t) => adminAction(t, await loadAppointment(t, id), req.params.action, req.body ?? {}, req.staff));
   res.json(await loadAppointment(q, id));
+});
+
+/** Relatório financeiro: ?from=YYYY-MM-DD&to=YYYY-MM-DD (até 1 ano). */
+r.get('/admin/reports', async (req, res) => {
+  const from = String(req.query.from ?? ''), to = String(req.query.to ?? '');
+  if (!isDay(from) || !isDay(to) || to < from) fail(400, 'Período inválido.');
+  if (Date.parse(to) - Date.parse(from) > 366 * 86400e3) fail(400, 'Escolha um período de até 1 ano.');
+  res.json(await financialReport(q, from, to));
 });
 
 // ---- Serviços -------------------------------------------------------------------------------------------------

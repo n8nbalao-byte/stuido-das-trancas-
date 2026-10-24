@@ -18,6 +18,7 @@ import Loja from './pages/Loja';
 import Produto from './pages/Produto';
 import Pedidos from './pages/admin/Pedidos';
 import Produtos from './pages/admin/Produtos';
+import Relatorios from './pages/admin/Relatorios';
 import MinhaSolicitacao from './pages/MinhaSolicitacao';
 import NotFound from './pages/NotFound';
 import Politicas from './pages/Politicas';
@@ -52,6 +53,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="equipe" element={<Equipe />} />
         <Route path="produtos" element={<Produtos />} />
         <Route path="pedidos" element={<Pedidos />} />
+        <Route path="relatorios" element={<Relatorios />} />
         <Route path="notificacoes" element={<Notificacoes />} />
         <Route path="configuracoes" element={<Configuracoes />} />
       </Route>

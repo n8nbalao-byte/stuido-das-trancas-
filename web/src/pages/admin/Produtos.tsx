@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Alert, Icon, Loading } from '../../components/ui';
 import { api, money } from '../../lib/api';
 import { useLoad } from './common';
+import { CategoriasModal, type Category } from './CategoriasModal';
 import { PhotoInput } from './PhotoInput';
 
 type Variant = { id: number; name: string; price_cents: number; stock_qty: number; reserved_qty: number; active: number };
@@ -9,7 +10,6 @@ type Prod = { id: number; name: string; category: string; description: string | 
 /** Linha editável de variação: `id` ausente = nova (com estoque inicial). */
 type Row = { key: string; id?: number; name: string; price: string; initial: string; active: boolean; stock: number; reserved: number };
 
-const CATS = ['Jumbos', 'Cabelos', 'Cremes e cuidados', 'Acessórios', 'Outros'];
 const LOW = 3;
 const reais = (c: number) => (c / 100).toFixed(2).replace('.', ',');
 const toCents = (v: string) => { const s = v.trim().replace(/\s|R\$/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'); const n = Number(s); return s && Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null; };
@@ -52,7 +52,7 @@ function StockMove({ row, onDone }: { row: Row; onDone: (msg: string) => void })
 }
 
 /** Janela do produto: cabeçalho com X, seções separadas, rodapé com Salvar (salva tudo e fecha). */
-function ProductModal({ product, onClose, onSaved }: { product: Prod | null; onClose: () => void; onSaved: (msg: string) => void }) {
+function ProductModal({ product, categories, onClose, onSaved }: { product: Prod | null; categories: string[]; onClose: () => void; onSaved: (msg: string) => void }) {
   const dlg = useRef<HTMLDialogElement>(null);
   const [rows, setRows] = useState<Row[]>(() => (product ? product.variants.map(toRow) : [newRow('Padrão')]));
   const [moving, setMoving] = useState<number | null>(null);
@@ -106,8 +106,10 @@ function ProductModal({ product, onClose, onSaved }: { product: Prod | null; onC
               <div className="stack">
                 <label className="field"><span>Nome do produto</span><input className="input" name="name" required maxLength={120} defaultValue={product?.name} /></label>
                 <label className="field"><span>Categoria</span>
-                  <input className="input" name="category" list="cats" required maxLength={40} defaultValue={product?.category ?? 'Jumbos'} />
-                  <datalist id="cats">{CATS.map((c) => <option key={c} value={c} />)}</datalist>
+                  <select className="select" name="category" required defaultValue={product?.category ?? categories[0]}>
+                    {categories.map((c) => <option key={c}>{c}</option>)}
+                    {product && !categories.includes(product.category) && <option>{product.category}</option>}
+                  </select>
                 </label>
                 <label className="field"><span>Descrição</span><textarea className="input" name="description" rows={5} defaultValue={product?.description ?? ''} placeholder="Cor, comprimento, peso, como usar…" /></label>
                 <label className="check"><input type="checkbox" name="active" defaultChecked={product ? !!product.active : true} /><span>Visível na loja</span></label>
@@ -161,25 +163,33 @@ function ProductModal({ product, onClose, onSaved }: { product: Prod | null; onC
 
 export default function Produtos() {
   const [list, error, reload] = useLoad<Prod[]>('/admin/products');
+  const [cats, , reloadCats] = useLoad<Category[]>('/admin/product-categories');
+  const [catsOpen, setCatsOpen] = useState(false);
   const [edit, setEdit] = useState<Prod | 'new' | null>(null);
   const [toast, setToast] = useState('');
   const [term, setTerm] = useState('');
   const [cat, setCat] = useState('');
   if (error) return <Alert kind="danger">{error}</Alert>;
-  if (!list) return <Loading />;
-  const cats = [...new Set(list.map((p) => p.category))];
+  if (!list || !cats) return <Loading />;
+  const used = cats.map((c) => c.name).filter((n) => list.some((p) => p.category === n));
   const shown = list.filter((p) => (!cat || p.category === cat) && (!term || p.name.toLowerCase().includes(term.toLowerCase())));
 
   return (
     <div className="stack" style={{ gap: 16 }}>
-      <div className="row between"><h1 style={{ margin: 0 }}>Produtos e estoque</h1><button className="btn" onClick={() => { setToast(''); setEdit('new'); }}>Novo produto</button></div>
+      <div className="row between">
+        <h1 style={{ margin: 0 }}>Produtos e estoque</h1>
+        <div className="row">
+          <button className="btn outline" onClick={() => { setToast(''); setCatsOpen(true); }}>Categorias</button>
+          <button className="btn" onClick={() => { setToast(''); setEdit('new'); }}>Novo produto</button>
+        </div>
+      </div>
       {toast && <Alert kind="ok">{toast}</Alert>}
       <div className="row">
         <input className="input" placeholder="Buscar produto" value={term} onChange={(e) => setTerm(e.target.value)} style={{ maxWidth: 320 }} aria-label="Buscar produto" />
-        {cats.length > 1 && (
+        {used.length > 1 && (
           <div className="chips" role="group" aria-label="Categoria">
             <button className={`chip ${!cat ? 'on' : ''}`} onClick={() => setCat('')}>Todas</button>
-            {cats.map((c) => <button key={c} className={`chip ${cat === c ? 'on' : ''}`} onClick={() => setCat(c)}>{c}</button>)}
+            {used.map((c) => <button key={c} className={`chip ${cat === c ? 'on' : ''}`} onClick={() => setCat(c)}>{c}</button>)}
           </div>
         )}
       </div>
@@ -205,7 +215,8 @@ export default function Produtos() {
           })}
         </div>
       )}
-      {edit && <ProductModal key={edit === 'new' ? 'new' : edit.id} product={edit === 'new' ? null : edit} onClose={() => { setEdit(null); reload(); }} onSaved={setToast} />}
+      {edit && <ProductModal key={edit === 'new' ? 'new' : edit.id} product={edit === 'new' ? null : edit} categories={cats.map((c) => c.name)} onClose={() => { setEdit(null); reload(); }} onSaved={setToast} />}
+      {catsOpen && <CategoriasModal onClose={() => { setCatsOpen(false); reloadCats(); reload(); }} />}
     </div>
   );
 }
