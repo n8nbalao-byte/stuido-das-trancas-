@@ -39,6 +39,7 @@ export default function AdminLayout() {
           <NavLink to="/admin/equipe">Equipe</NavLink>
           <NavLink to="/admin/pedidos">Pedidos da loja {counts.orders_open > 0 && <span className="count">{counts.orders_open}</span>}</NavLink>
           <NavLink to="/admin/produtos">Produtos e estoque</NavLink>
+          <NavLink to="/admin/relatorios">Relatórios</NavLink>
           <NavLink to="/admin/notificacoes">WhatsApp</NavLink>
           <NavLink to="/admin/configuracoes">Configurações</NavLink>
         </nav>

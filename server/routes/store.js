@@ -17,7 +17,9 @@ const publicProduct = (p, variants) => ({
 });
 
 async function catalog() {
-  const products = await q('SELECT * FROM products WHERE active = 1 ORDER BY sort, name');
+  // Na ordem das categorias definida no painel (os filtros da loja seguem essa ordem).
+  const products = await q(`SELECT p.* FROM products p LEFT JOIN product_categories c ON c.name = p.category
+    WHERE p.active = 1 ORDER BY COALESCE(c.sort, 999), p.sort, p.name`);
   const variants = await q('SELECT * FROM product_variants WHERE active = 1 ORDER BY sort, id');
   return products.map((p) => publicProduct(p, variants)).filter((p) => p.variants.length);
 }
@@ -45,12 +47,73 @@ r.post('/orders', limit(10, 3600e3), async (req, res) => {
 r.use('/admin', requireAdmin);
 
 r.get('/admin/products', async (req, res) => {
-  const products = await q('SELECT * FROM products ORDER BY sort, name');
+  const products = await q('SELECT p.* FROM products p LEFT JOIN product_categories c ON c.name = p.category ORDER BY COALESCE(c.sort, 999), p.sort, p.name');
   const variants = await q('SELECT * FROM product_variants ORDER BY sort, id');
   res.json(products.map((p) => ({ ...p, variants: variants.filter((v) => v.product_id === p.id) })));
 });
 
 const slugify = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+const assertCategory = async (name) => {
+  const [c] = await q('SELECT 1 FROM product_categories WHERE name = ?', [name]);
+  if (!c) fail(400, 'Categoria inexistente. Crie a categoria antes (Produtos → Categorias).');
+};
+
+// ---- Categorias da loja ----------------------------------------------------------------------------------------------
+
+r.get('/admin/product-categories', async (req, res) => {
+  res.json(await q(`SELECT c.id, c.name, c.sort, COUNT(p.id) AS products
+    FROM product_categories c LEFT JOIN products p ON p.category = c.name GROUP BY c.id ORDER BY c.sort, c.name`));
+});
+
+const catName = (v) => text(v, 'nome da categoria', { max: 40 });
+
+r.post('/admin/product-categories', async (req, res) => {
+  const name = catName(req.body?.name);
+  const [dup] = await q('SELECT 1 FROM product_categories WHERE name = ?', [name]);
+  if (dup) fail(409, 'Já existe uma categoria com esse nome.');
+  const r2 = await q('INSERT INTO product_categories (name, sort) SELECT ?, COALESCE(MAX(sort), 0) + 1 FROM product_categories', [name]);
+  res.status(201).json({ id: r2.insertId });
+});
+
+/** Ordem das categorias: { ids: [id, id, ...] } na ordem desejada. */
+r.put('/admin/product-categories/order', async (req, res) => {
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number);
+  await tx(async (t) => { for (const [i, id] of ids.entries()) await t('UPDATE product_categories SET sort = ? WHERE id = ?', [i + 1, id]); });
+  res.json({ ok: true });
+});
+
+/** Renomear: troca o nome na categoria e em todos os produtos dela, junto. */
+r.put('/admin/product-categories/:id', async (req, res) => {
+  const name = catName(req.body?.name);
+  await tx(async (t) => {
+    const [c] = await t('SELECT * FROM product_categories WHERE id = ? FOR UPDATE', [Number(req.params.id)]);
+    if (!c) fail(404, 'Categoria não encontrada.');
+    if (c.name === name) return;
+    const [dup] = await t('SELECT 1 FROM product_categories WHERE name = ? AND id <> ?', [name, c.id]);
+    if (dup) fail(409, 'Já existe uma categoria com esse nome.');
+    await t('UPDATE product_categories SET name = ? WHERE id = ?', [name, c.id]);
+    await t('UPDATE products SET category = ? WHERE category = ?', [name, c.name]);
+  });
+  res.json({ ok: true });
+});
+
+/** Excluir: categoria com produtos só sai se eles forem movidos para outra (?moveTo=id). */
+r.delete('/admin/product-categories/:id', async (req, res) => {
+  await tx(async (t) => {
+    const [c] = await t('SELECT * FROM product_categories WHERE id = ? FOR UPDATE', [Number(req.params.id)]);
+    if (!c) fail(404, 'Categoria não encontrada.');
+    const [{ n }] = await t('SELECT COUNT(*) n FROM products WHERE category = ?', [c.name]);
+    if (n) {
+      const moveTo = Number(req.query.moveTo);
+      const [dest] = Number.isInteger(moveTo) ? await t('SELECT * FROM product_categories WHERE id = ? AND id <> ?', [moveTo, c.id]) : [];
+      if (!dest) fail(409, `A categoria tem ${n} produto(s). Escolha para qual categoria movê-los.`);
+      await t('UPDATE products SET category = ? WHERE category = ?', [dest.name, c.name]);
+    }
+    await t('DELETE FROM product_categories WHERE id = ?', [c.id]);
+  });
+  res.json({ ok: true });
+});
+
 const productFields = (b) => ({
   name: text(b.name, 'nome', { max: 120 }),
   category: text(b.category, 'categoria', { max: 40 }),
@@ -68,6 +131,7 @@ const variantFields = (b) => ({
 r.post('/admin/products', async (req, res) => {
   const b = req.body ?? {};
   const f = productFields(b);
+  await assertCategory(f.category);
   // Formato antigo (um preço e um estoque) vira uma variação "Padrão".
   const variants = Array.isArray(b.variants) ? b.variants : [{ name: 'Padrão', price_cents: b.price_cents ?? 0, stock_qty: b.stock_qty ?? 0, active: true }];
   if (!variants.length || variants.length > 30) fail(400, 'Informe ao menos uma variação.');
@@ -89,6 +153,7 @@ r.put('/admin/products/:id', async (req, res) => {
   const b = req.body ?? {};
   const id = Number(req.params.id);
   const f = productFields(b);
+  await assertCategory(f.category);
   await tx(async (t) => {
     const r2 = await t('UPDATE products SET ? WHERE id = ?', [f, id]);
     if (!r2.affectedRows) fail(404, 'Produto não encontrado.');

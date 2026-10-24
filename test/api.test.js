@@ -255,3 +255,42 @@ test('produto: criar com várias variações e salvar tudo de uma vez', { skip }
   assert.equal((await call('PUT', `/api/admin/products/${p.id}`, { ...body, variants: [{ id: other.id, name: 'x', price_cents: 1, active: true }] })).status, 400);
   assert.equal((await get()).variants[0].name, 'Preto 1B', 'nada muda quando a transação falha');
 });
+
+test('categorias: criar, renomear (leva os produtos junto), excluir movendo produtos', { skip }, async () => {
+  const cats = async () => (await call('GET', '/api/admin/product-categories')).body;
+  assert.ok((await cats()).some((c) => c.name === 'Jumbos' && c.products > 0));
+  assert.equal((await call('POST', '/api/admin/product-categories', { name: 'Jumbos' })).status, 409);
+  const novo = await call('POST', '/api/admin/product-categories', { name: 'Perucas' });
+  assert.equal(novo.status, 201);
+  assert.equal((await call('POST', '/api/admin/products', { name: 'Sem categoria', category: 'Não existe', active: true, price_cents: 100 })).status, 400);
+  const p = await call('POST', '/api/admin/products', { name: 'Peruca Teste', category: 'Perucas', active: true, price_cents: 15000 });
+  assert.equal((await call('PUT', `/api/admin/product-categories/${novo.body.id}`, { name: 'Perucas e laces' })).status, 200);
+  const [row] = await q('SELECT category FROM products WHERE id = ?', [p.body.id]);
+  assert.equal(row.category, 'Perucas e laces');
+  assert.equal((await call('DELETE', `/api/admin/product-categories/${novo.body.id}`)).status, 409, 'tem produto');
+  const acc = (await cats()).find((c) => c.name === 'Acessórios');
+  assert.equal((await call('DELETE', `/api/admin/product-categories/${novo.body.id}?moveTo=${acc.id}`)).status, 200);
+  assert.equal((await q('SELECT category FROM products WHERE id = ?', [p.body.id]))[0].category, 'Acessórios');
+  const order = (await cats()).map((c) => c.id).reverse();
+  await call('PUT', '/api/admin/product-categories/order', { ids: order });
+  assert.deepEqual((await cats()).map((c) => c.id), order);
+});
+
+test('relatório financeiro: sinais, saldos, vendas e estornos do período', { skip }, async () => {
+  const id2 = (await q('SELECT id FROM appointments WHERE code = ?', [s.a2]))[0].id;
+  assert.equal((await call('POST', `/api/admin/appointments/${id2}/complete`, {})).body.status, 'completed');
+  const today = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+  const to = new Date(Date.now() + 15 * 86400e3).toISOString().slice(0, 10);
+  assert.equal((await call('GET', `/api/admin/reports?from=${to}&to=${today}`)).status, 400);
+  const r = (await call('GET', `/api/admin/reports?from=${today}&to=${to}`)).body;
+  const [{ dep }] = await q("SELECT SUM(amount_cents) dep FROM payments WHERE status = 'confirmed'");
+  assert.equal(r.summary.deposits, Number(dep));
+  assert.equal(r.summary.balances, 40600, 'saldo do atendimento concluído');
+  assert.equal(r.summary.sales, 5000);
+  assert.equal(r.summary.refunds, -5000, 'venda paga e cancelada vira estorno');
+  assert.equal(r.summary.total, Number(dep) + 40600);
+  assert.ok(r.movements.some((m) => m.kind === 'saldo' && m.cents === 40600));
+  assert.equal(r.byStaff[0].name, 'Jhennifer');
+  assert.equal(r.byProduct[0].count, 2);
+  assert.equal(r.summary.retained, 17400, 'sinal do agendamento cancelado');
+});
